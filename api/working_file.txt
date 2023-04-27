@@ -1,0 +1,114 @@
+# api/views.py
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+import numpy as np
+
+
+# coding=utf-8
+import sys
+import os
+import glob
+import re
+import numpy as np
+import cv2
+
+# Keras
+from tensorflow.keras.applications.imagenet_utils import preprocess_input, decode_predictions
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing import image
+
+#from werkzeug.utils import secure_filename
+from django.core.files.storage import FileSystemStorage
+
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from tensorflow.keras.models import load_model
+from PIL import Image
+from io import BytesIO
+import numpy as np
+
+ 
+
+from django.shortcuts import render,redirect
+
+import pickle
+
+class FertilizerView(APIView):
+    def post(self, request):
+        user_input = request.data.get('npk_value', None)
+        model = pickle.load(open('model/classifier1.pkl','rb'))
+        if user_input is not None:
+            list_numbers = user_input.split(',')
+            npk_value = list(map(int, list_numbers)) 
+
+            #print(npk_value[1])
+            result = model.predict(np.array([npk_value]))
+            print(result)
+            if result[0] == 0:
+                result = 'TEN-TWENTY SIX-TWENTY SIX'
+            elif result[0] == 1:
+                result = 'Fourteen-Thirty Five-Fourteen'
+            elif result[0] == 2:
+                result = 'Seventeen-Seventeen-Seventeen'
+            elif result[0] == 3:
+                result = 'TWENTY-TWENTY'
+            elif result[0] == 4:
+                result = 'TWENTY EIGHT-TWENTY EIGHT'
+            elif result[0] == 5:
+                result = 'DAP'
+            else:
+                result = 'UREA'
+
+            return Response({'result': result, 'status':"ok"}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'npk_value not provided','status':"error"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+def index(request):
+    return render(request,"index.html")
+
+@csrf_exempt
+def classify_image(request):
+    if request.method == 'POST':
+        
+        image_file = request.FILES.get('image')
+        
+        model = load_model('models/crop_disease_prediction.h5')
+        
+        img = Image.open(BytesIO(image_file.read()))
+        
+        img = img.resize((256, 256))
+
+        # Convert the image to a numpy array
+        img_array = np.array(img)
+
+        # Normalize the pixel values to be in the range [0, 1]
+        img_array = img_array.astype('float32') / 255.0
+
+        # Add an extra dimension to the image array to match the input shape of the model
+        img_array = np.expand_dims(img_array, axis=0)
+        
+        # Make a prediction using the model
+       
+        
+        preds = model.predict(img_array)
+
+         # Process your result for human
+        pred_class = preds.argmax()              # Simple argmax
+ 
+        
+        CATEGORIES = ['Pepper__bell___Bacterial_spot','Pepper__bell___healthy',
+            'Potato___Early_blight' ,'Potato___Late_blight', 'Potato___healthy',
+            'Tomato_Bacterial_spot' ,'Tomato_Early_blight', 'Tomato_Late_blight',
+            'Tomato_Leaf_Mold' ,'Tomato_Septoria_leaf_spot',
+            'Tomato_Spider_mites_Two_spotted_spider_mite' ,'Tomato__Target_Spot',
+            'Tomato__YellowLeaf__Curl_Virus', 'Tomato_mosaic_virus',
+            'Tomato_healthy']
+
+        print(CATEGORIES[pred_class]) 
+
+        # Return the predicted class as a JSON response
+        return JsonResponse({'predicted_class': CATEGORIES[pred_class]})
+    else:
+        return JsonResponse({'error': 'Invalid request method'})
