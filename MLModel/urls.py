@@ -16,10 +16,12 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path,include
 from api.views import FertilizerView
+from api.views import CropView
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('fertilizer/', FertilizerView.as_view()),
+    path('crop/', CropView.as_view()),
     path('',include('api.urls')),
 ]
